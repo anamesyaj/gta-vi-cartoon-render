@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { start: 0,   end: 86 }
+          - { start: 0,   end: 86  }
           - { start: 87,  end: 173 }
           - { start: 174, end: 260 }
           - { start: 261, end: 347 }
@@ -34,7 +34,9 @@ jobs:
       - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
-          npx -y playwright@1.55.0 install --with-deps chromium
+      - name: Install Playwright + Chromium
+        run: |
+          npx playwright install --with-deps chromium
           CHROME=$(ls ~/.cache/ms-playwright/chromium-*/chrome-linux/chrome | head -1)
           echo "Chromium at: $CHROME"
           echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE=$CHROME" >> $GITHUB_ENV
