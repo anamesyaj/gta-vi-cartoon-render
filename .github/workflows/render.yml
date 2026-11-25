@@ -1,0 +1,85 @@
+name: Render GTA VI cartoon short (9:16, 870 frames)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  render:
+    name: Render frames ${{ matrix.start }}-${{ matrix.end }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { start: 0,   end: 86 }
+          - { start: 87,  end: 173 }
+          - { start: 174, end: 260 }
+          - { start: 261, end: 347 }
+          - { start: 348, end: 434 }
+          - { start: 435, end: 521 }
+          - { start: 522, end: 608 }
+          - { start: 609, end: 695 }
+          - { start: 696, end: 782 }
+          - { start: 783, end: 869 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npx -y playwright@1.55.0 install --with-deps chromium
+          CHROME=$(ls ~/.cache/ms-playwright/chromium-*/chrome-linux/chrome | head -1)
+          echo "Chromium at: $CHROME"
+          echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE=$CHROME" >> $GITHUB_ENV
+
+      - name: Render shard
+        run: node render.mjs frames "${{ matrix.start }}-${{ matrix.end }}"
+
+      - name: Upload frames
+        uses: actions/upload-artifact@v4
+        with:
+          name: frames-${{ matrix.start }}-${{ matrix.end }}
+          path: frames/*.jpg
+          if-no-files-found: error
+          retention-days: 7
+
+  assemble:
+    name: Verify + bundle all frames
+    needs: render
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all frame shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: frames-*
+          path: allframes
+          merge-multiple: true
+
+      - name: Verify frame count
+        run: |
+          count=$(find allframes -name '*.jpg' | wc -l)
+          echo "Frames downloaded: $count (expected 870)"
+          ls allframes | head -3
+          ls allframes | tail -3
+          if [ "$count" -lt 865 ]; then
+            echo "::error::Only $count frames found, expected ~870 — aborting"
+            exit 1
+          fi
+
+      - name: Upload combined frames artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-frames
+          path: allframes/*.jpg
+          if-no-files-found: error
+          retention-days: 7
